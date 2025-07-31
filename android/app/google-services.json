@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "932532353645",
+    "project_id": "tracking-8d231",
+    "storage_bucket": "tracking-8d231.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:932532353645:android:290c811f80827f06af5d64",
+        "android_client_info": {
+          "package_name": "com.example.gmap_tracking"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBNb71V0PyDEk0MVT8FTgIow5hJHsSE2BE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:932532353645:android:573fb867cf13ae84af5d64",
+        "android_client_info": {
+          "package_name": "com.example.tracing"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBNb71V0PyDEk0MVT8FTgIow5hJHsSE2BE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
