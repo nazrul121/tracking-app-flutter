@@ -34,6 +34,7 @@ class _LocationPermiterState extends State<LocationPermiter> with WidgetsBinding
   @override
   void initState() {
     super.initState();
+    _checkLocationAndProceed();
     WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addObserver(_lifecycleHandler);
   }

@@ -1,8 +1,7 @@
 import 'dart:math';
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../utils/location_helper.dart';
 
 class CustomerServicePage extends StatefulWidget {
@@ -43,6 +42,25 @@ class _CustomerServicePageState extends State<CustomerServicePage> {
       'color': Colors.purple,
     },
   ];
+  String user_id = '';
+
+  @override
+  void initState() {
+    super.initState();
+    getUserInfo();
+  }
+
+  Future<void> getUserInfo() async {
+    final prefs = await SharedPreferences.getInstance();
+    final userId = prefs.getString('user_id');
+    if (userId != null) {
+      setState(() {
+        user_id = userId;
+      });
+    }
+  }
+
+
 
   @override
   Widget build(BuildContext context) {
@@ -95,37 +113,48 @@ class _CustomerServicePageState extends State<CustomerServicePage> {
                 ),
                 trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 16),
                 onTap: () {
-                  // Handle service tap if needed
+                  // handleServiceRequest(customerId: user_id, serviceId: service['id'], serviceName: service['title']);
                 },
               ),
             );
-          }).toList(),
+          }),
         ],
       ),
     );
   }
 
+
   Future<void> handleServiceRequest({
     required String customerId,
     required String serviceId,
     required String serviceName,
-  }) async {
+  })
+  async {
     GeoPoint location = await getCurrentLocation();
 
+    // Convert serviceId to int
+    int parsedServiceId = int.tryParse(serviceId) ?? -1;
+    int customerIdInt = int.tryParse(customerId) ?? -1;
+    if (parsedServiceId == -1) {
+      print('Invalid service ID: $serviceId');
+      return;
+    }
+
     await FirebaseFirestore.instance
-        .collection('service_request')
-        .doc(customerId)
-        .set({
-      'service_id': serviceId,
+        .collection('service_requests')
+        .add({
+      'service_id': parsedServiceId,
       'service_name': serviceName,
       'timestamp': Timestamp.now(),
       'location': location,
+      'status': 'new',
+      'customer_id': customerIdInt,
     });
 
     // Now search for nearby providers
     searchNearbyProviders(
       customerId: customerId,
-      serviceId: serviceId,
+      serviceId: parsedServiceId.toString(), // keep passing string if needed
       customerLocation: location,
       serviceName: serviceName,
     );
@@ -136,43 +165,53 @@ class _CustomerServicePageState extends State<CustomerServicePage> {
     required String serviceId,
     required GeoPoint customerLocation,
     required String serviceName,
-  }) async {
+  })
+  async {
+    final int? parsedServiceId = int.tryParse(serviceId);
+    final int? parsedCustomerId = int.tryParse(customerId);
+
+    if (parsedServiceId == null || parsedCustomerId == null) {
+      print('Invalid serviceId or customerId format');
+      return;
+    }
+
     final snapshot = await FirebaseFirestore.instance
-        .collection('service_provider')
-        .doc(serviceId)
-        .collection('active')
+        .collection('service_providers')
+        .doc(parsedServiceId.toString()) // doc ID can stay string
+        .collection('providers')
         .get();
 
     for (var doc in snapshot.docs) {
-      GeoPoint providerLocation = doc['location'];
+      // GeoPoint providerLocation = doc['location'];
+      //
+      // double distance = calculateDistance(
+      //   customerLocation.latitude,
+      //   customerLocation.longitude,
+      //   providerLocation.latitude,
+      //   providerLocation.longitude,
+      // );
 
-      double distance = calculateDistance(
-          customerLocation.latitude,
-          customerLocation.longitude,
-          providerLocation.latitude,
-          providerLocation.longitude);
-
-      if (distance <= 5.0) {
-        // Send notification or create a Firestore trigger for popup
-        await FirebaseFirestore.instance
-            .collection('provider_notifications')
-            .doc(doc['provider_id'])
-            .set({
-          'customer_id': customerId,
-          'service_id': serviceId,
-          'service_name': serviceName,
-          'timestamp': Timestamp.now(),
-          'location': customerLocation,
-        });
-
-        break; // only notify one for now
-      }
+      // if (distance <= 5.0) {
+      await FirebaseFirestore.instance
+          .collection('provider_notifications')
+          .add({
+        'provider_id': doc['provider_id'],
+        'customer_id': parsedCustomerId,
+        'service_id': parsedServiceId,
+        'service_name': serviceName,
+        'timestamp': Timestamp.now(),
+        'location': customerLocation,
+        'status': 'new',
+      });
+      print('sent request to provider');
+      break; // notify only one for now
+      // }
     }
   }
 
 
-  double calculateDistance(
-      double lat1, double lon1, double lat2, double lon2) {
+
+  double calculateDistance( double lat1, double lon1, double lat2, double lon2) {
     const p = 0.017453292519943295;
     final a = 0.5 -
         cos((lat2 - lat1) * p) / 2 +

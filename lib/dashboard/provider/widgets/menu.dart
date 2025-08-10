@@ -1,23 +1,30 @@
 
 import 'package:flutter/material.dart';
-import 'package:gmap_tracking/dashboard/customer/home.dart';
+import 'package:flutter/material.dart';
+import 'package:gmap_tracking/dashboard/provider/home.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../auth/login.dart';
 
 class ProviderMenu extends StatelessWidget {
-  const ProviderMenu({super.key});
+  final Future<void> Function()? onLogout;
 
+  const ProviderMenu({super.key, this.onLogout});
 
   Future<void> logout(BuildContext context) async {
+    // If a callback was passed, run it first (for cleanup)
+    if (onLogout != null) {
+      await onLogout!();
+    }
+
     final prefs = await SharedPreferences.getInstance();
     await prefs.clear();
 
-    // Navigate back to login screen (replace with your login widget)
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(builder: (_) => LoginPage()),
     );
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -41,7 +48,7 @@ class ProviderMenu extends StatelessWidget {
         switch (value) {
           case 0:
           // Navigate to Profile page
-            Navigator.of(context).push(MaterialPageRoute(builder: (_) => const CustomerHome()));
+            Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ProviderHome()));
             break;
           case 1:
           // Navigate to History page

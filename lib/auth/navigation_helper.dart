@@ -4,6 +4,7 @@ import 'package:gmap_tracking/dashboard/provider/home.dart';
 
 
 Future<void> navigateBasedOnUserType(BuildContext context, String type) async {
+  print(type);
   if (type == 'customer') {
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(builder: (_) => const CustomerHome()),
@@ -22,3 +23,4 @@ Future<void> navigateBasedOnUserType(BuildContext context, String type) async {
     );
   }
 }
+

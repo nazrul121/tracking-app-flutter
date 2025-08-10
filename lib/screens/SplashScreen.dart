@@ -2,14 +2,11 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
 import '../auth/navigation_helper.dart';
 import '../widgets/burning_sun.dart';
 import '../widgets/flying_birds.dart';
 import '../widgets/ripple_effect.dart';
-import 'permission.dart'; // Your LocationPermiter screen
-import '../auth/login.dart'; // Your login screen
-import '../dashboard/Dashboard.dart'; // Your dashboard
+import 'permission.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -44,15 +41,17 @@ class _SplashScreenState extends State<SplashScreen> {
       return;
     }
 
-
-    if (!mounted) return;
-
-
-    // redirecting to related page
+    print('redirecting to related page');
     final prefs = await SharedPreferences.getInstance();
+
     if (prefs.containsKey('userType')) {
       String type = prefs.getString('userType')!;
+      print(type);
       await navigateBasedOnUserType(context, type);
+    }else{
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const LocationPermiter()),
+      );
     }
 
   }
@@ -123,11 +122,11 @@ class _SplashScreenState extends State<SplashScreen> {
                     height: 1.4,
                   ),
                 ),
-                const SizedBox(height: 40),
-                const CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation(Colors.orangeAccent),
-                  strokeWidth: 2.5,
-                )
+                // const SizedBox(height: 40),
+                // const CircularProgressIndicator(
+                //   valueColor: AlwaysStoppedAnimation(Colors.orangeAccent),
+                //   strokeWidth: 2.5,
+                // )
               ],
             ),
           ),

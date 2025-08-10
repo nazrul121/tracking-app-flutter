@@ -21,12 +21,12 @@ class _StylishLoginPageState extends State<LoginPage> {
   bool _isLoading = false;
 
   final List<Map<String, dynamic>> users = [
-    {'id':'1','username': 'customer1', 'password': '123456', 'status': 1, 'type':'customer'},
-    {'id':'2','username': 'customer2', 'password': '123456', 'status': 0, 'type':'customer'},
-    {'id':'3','username': 'customer3', 'password': '123456', 'status': 1, 'type':'customer'},
-    {'id':'4','username': 'provider1', 'password': '123456', 'status': 1, 'type':'provider'},
-    {'id':'4','username': 'provider2', 'password': '123456', 'status': 1, 'type':'provider'},
-    {'id':'5','username': 'admin', 'password': '123456', 'status': 1, 'type':'admin'},
+    {'id':'1','username': 'customer1', 'password': '123456', 'status': 1,'name':'First customer', 'phone':'01749015457', 'address':'address here', 'type':'customer'},
+    {'id':'2','username': 'customer2', 'password': '123456', 'status': 0, 'name':'second customer','phone':'017492552','address':'address here','type':'customer'},
+    {'id':'3','username': 'customer3', 'password': '123456', 'status': 1, 'name':'third customer','phone':'01834167576','address':'address here', 'type':'customer'},
+    {'id':'4','username': 'provider1', 'password': '123456', 'status': 1, 'name':'First provider','phone':'01002255225', 'address':'address here','type':'provider'},
+    {'id':'5','username': 'provider2', 'password': '123456', 'status': 1, 'name':'second provider','phone':'0185249821', 'address':'address here','type':'provider'},
+    {'id':'6','username': 'admin', 'password': '123456', 'status': 1, 'name':'Admin one','phone':'0195287458','address':'address here','type':'admin'},
   ];
 
   Future<void> _tryLogin() async {
@@ -73,6 +73,10 @@ class _StylishLoginPageState extends State<LoginPage> {
           .collection('user')
           .doc(userId)
           .set({
+        'name': user.containsKey('name') ? user['name'] : '',
+        'phone': user.containsKey('phone') ? user['phone'] : '',
+        'address': user.containsKey('address') ? user['address'] : '',
+        'type': user.containsKey('type') ? user['type'] : '',
         'location': location,
         'timeStamp': FieldValue.serverTimestamp(),  // Stored as actual timestamp
       });
@@ -84,7 +88,10 @@ class _StylishLoginPageState extends State<LoginPage> {
       // Save to SharedPreferences
       SharedPreferences prefs = await SharedPreferences.getInstance();
       await prefs.setString('user_id', userId);
-      await prefs.setString('username', user['username']);
+      await prefs.setString('userName', user['username']);
+      await prefs.setString('name', user['name']);
+      await prefs.setString('phone', user['phone']);
+      await prefs.setString('address', user['address']);
       await prefs.setInt('status', user['status']);
       await prefs.setString('userType', user['type']);
 

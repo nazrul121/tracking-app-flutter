@@ -1,23 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:gmap_tracking/dashboard/customer/widgets/request_service_popup.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'dart:async';
 import 'package:geolocator/geolocator.dart';
 
-import '../services/location_updater.dart';
-import '../widgets/flying_birds.dart';
+import '../../../services/location_updater.dart';
 
 
-class MyLocation extends StatefulWidget {
+class CustomerLocation extends StatefulWidget {
 
-  MyLocation({super.key});
+  CustomerLocation({super.key});
 
   @override
-  State<MyLocation> createState() => _MyLocationState();
+  State<CustomerLocation> createState() => _MyLocationState();
 }
 
-class _MyLocationState extends State<MyLocation> {
+class _MyLocationState extends State<CustomerLocation> {
   LatLng? currentLocation;
   String userId = '';
   bool isLoading = true;
@@ -142,7 +142,6 @@ class _MyLocationState extends State<MyLocation> {
           if (snapshot.hasError) {
             return Center(child: Text('Error: ${snapshot.error}'));
           }
-
           if (!snapshot.hasData || !snapshot.data!.exists) {
             return Center(child: Text('No location data found'));
           }
@@ -168,7 +167,6 @@ class _MyLocationState extends State<MyLocation> {
 
           return Stack(
             children: [
-
               GoogleMap(
                 initialCameraPosition: CameraPosition(target: newPosition, zoom: 16),
                 markers: _userMarker != null ? {_userMarker!} : {},
@@ -180,9 +178,9 @@ class _MyLocationState extends State<MyLocation> {
                 mapToolbarEnabled: true,
               ),
 
+              // traffic light
               Positioned(
-                top: 40,
-                right: 16,
+                top: 40, right: 16,
                 child: Container(
                   decoration: BoxDecoration(
                     color: Colors.black.withValues(alpha: 0.6),
@@ -201,10 +199,41 @@ class _MyLocationState extends State<MyLocation> {
                   ),
                 ),
               ),
+              // service request
               Align(
-                alignment: Alignment.bottomLeft,
+                alignment: Alignment.bottomCenter,
                 child: Padding(
-                  padding: const EdgeInsets.all(16.0),
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xB20877E6), // Solid dark blue/purple color
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    onPressed: () {
+                      showModalBottomSheet(
+                        context: context,
+                        isScrollControlled: true,
+                        backgroundColor: Colors.transparent,
+                        builder: (context) => const RequestServicePopup(),
+                      );
+                    },
+                    icon: const Icon(Icons.add_circle_outline, color: Colors.white),
+                    label: const Text(
+                      'Request a service',
+                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
+                    ),
+                  ),
+                ),
+              ),
+
+
+              Align(
+                alignment: Alignment.topLeft,
+                child: Padding(
+                  padding: const EdgeInsets.only(top:30, left: 10),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -217,9 +246,9 @@ class _MyLocationState extends State<MyLocation> {
                         ),
                         child: DropdownButton<MapType>(
                           value: _currentMapType,
-                          dropdownColor: Colors.grey.withValues(alpha: 0.5),
+                          dropdownColor: Colors.white.withValues(alpha: 0.8),
                           underline: SizedBox(), // Remove default underline
-                          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                          style: TextStyle(color: Colors.black45, fontWeight: FontWeight.bold),
                           items: mapTypeNames.entries.map((entry) {
                             return DropdownMenuItem<MapType>(
                               value: entry.key,
@@ -239,37 +268,21 @@ class _MyLocationState extends State<MyLocation> {
                   ),
                 ),
               ),
-              Positioned(
-                bottom: 1,
-                left: 16,
-                right: 16,
-                child: Container(
-                  padding: EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.6),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    'Last updated: $_lastUpdated',
-                    style: TextStyle(color: Colors.white),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-              ),
+
             ],
           );
         },
       ):Container(
-          color: Colors.blueGrey.withValues(alpha: 0.1),
-          height: double.infinity,
-          child:Center(
-            child: SizedBox(
-              height: 25, width: 25,
-              child: CircularProgressIndicator(
-                color: Colors.blueGrey,backgroundColor: Colors.blue,
-              ),
+        color: Colors.blueGrey.withValues(alpha: 0.1),
+        height: double.infinity,
+        child:Center(
+          child: SizedBox(
+            height: 25, width: 25,
+            child: CircularProgressIndicator(
+              color: Colors.blueGrey,backgroundColor: Colors.blue,
             ),
-          )
+          ),
+        )
       )
     );
   }

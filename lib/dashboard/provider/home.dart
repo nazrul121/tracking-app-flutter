@@ -1,12 +1,12 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'dart:async';
+import 'package:audioplayers/audioplayers.dart';
+import 'package:cloud_firestore/cloud_firestore.dart' hide Source;
 import 'package:flutter/material.dart';
-import 'package:geolocator/geolocator.dart';
-import 'package:gmap_tracking/dashboard/provider/widgets/menu.dart';
+import 'package:gmap_tracking/dashboard/provider/services/request_handler.dart';
+import 'package:gmap_tracking/dashboard/provider/widgets/appBar.dart';
+import 'package:gmap_tracking/dashboard/provider/widgets/incoming_request_dialog.dart';
 import 'package:gmap_tracking/dashboard/provider/widgets/services.dart';
-
-import '../../utils/location_helper.dart';
-import '../my_location.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'my_home.dart';
 
 class ProviderHome extends StatefulWidget {
@@ -16,12 +16,11 @@ class ProviderHome extends StatefulWidget {
   State<ProviderHome> createState() => _ProviderHomeState();
 }
 
-
 class _ProviderHomeState extends State<ProviderHome> {
-
   int _selectedIndex = 0;
 
   final List<String> _titles = ['Home', 'Service', 'Account'];
+
   final List<IconData> _iconsFilled = [
     Icons.home_filled,
     Icons.build_circle,
@@ -33,7 +32,6 @@ class _ProviderHomeState extends State<ProviderHome> {
     Icons.build_circle_outlined,
     Icons.account_circle_outlined,
   ];
-
 
 
   // List of pages to show for each tab
@@ -53,47 +51,139 @@ class _ProviderHomeState extends State<ProviderHome> {
   @override
   void initState() {
     super.initState();
+    _startListeningForRequests();
+  }
+
+  StreamSubscription<QuerySnapshot>? _requestsSubscription;
+
+  Future<void> _startListeningForRequests() async {
+
+    print('start listening to customer request....');
+
+    final prefs = await SharedPreferences.getInstance();
+    final providerId = prefs.getString('user_id');
+
+    if (providerId == null || providerId == -1) {
+      print('Provider ID not found in SharedPreferences');
+      return;
+    }
+
+    final int parsedProviderId = int.tryParse(providerId) ?? -1;
+    if (parsedProviderId == -1) {
+      print('Invalid provider ID');
+      return;
+    }
+    await _requestsSubscription?.cancel();
+    _requestsSubscription = FirebaseFirestore.instance
+        .collection('provider_notifications')
+        .where('provider_id', isEqualTo: parsedProviderId)
+        .where('status', isEqualTo: 'new')
+        .snapshots()
+        .listen((querySnapshot) {
+
+
+      for (var change in querySnapshot.docChanges) {
+        if (change.type == DocumentChangeType.added) {
+          final requestData = change.doc.data();
+          print('New request received: $requestData.location');
+          if (requestData != null) {
+            _showIncomingRequestPopup(change.doc.id, requestData);
+          }
+        }
+      }
+    });
   }
 
 
+  Future<void> _showIncomingRequestPopup(String requestId, Map<String, dynamic> requestData) async {
+
+    if (!mounted) return;
+    final RequestHandler requestHandler = RequestHandler();
+    await requestHandler.playAlertSound();
+
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: false,
+      pageBuilder: (_, __, ___) {
+        return IncomingRequestDialog(
+          requestData: requestData,
+          onAccept: () async {
+            Navigator.pop(context);
+            await requestHandler.stopSound();
+            await requestHandler.acceptRequest(requestId);
+          },
+          onIgnore: () async {
+            Navigator.pop(context);
+            await requestHandler.stopSound();
+            await requestHandler.ignoreRequest(requestId);
+          },
+        );
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _requestsSubscription?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text("Provider Home"),
-        actions: [ ProviderMenu() ],
-      ),
-      body:SafeArea(
-        child: SingleChildScrollView(
-          child: Stack(
-            children: [
-              _pages[_selectedIndex],
-            ],
-          ),
+    final bottomInset = MediaQuery.of(context).viewPadding.bottom;
+    final bool isNavBarVisible = bottomInset > 0;
+
+    return isNavBarVisible ?
+      SafeArea(
+        child: Scaffold(
+          extendBodyBehindAppBar: true,
+          appBar: ProviderAppBar(),
+          body:_buildMainWidget(),
+          bottomNavigationBar: _bottomNavBarWidget(),
         ),
-      ),
-      bottomNavigationBar: Container(
-        margin: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(28),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black12,
-              blurRadius: 10,
-              spreadRadius: 2,
-              offset: const Offset(0, 5),
-            )
-          ],
+      )
+      :Scaffold(
+        extendBodyBehindAppBar: true,
+        appBar: ProviderAppBar(),
+        body: SafeArea(
+          child: _buildMainWidget(),
         ),
-        child: Row(
-          children: List.generate(_titles.length, (index) => _buildNavItem(index)),
-        ),
+        bottomNavigationBar: _bottomNavBarWidget(),
+      )
+    ;
+
+  }
+
+  Widget _buildMainWidget(){
+    return SingleChildScrollView(
+      child: Stack(
+        children: [
+          _pages[_selectedIndex],
+        ],
       ),
     );
   }
 
+  Widget _bottomNavBarWidget(){
+    return Container(
+      margin: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black12,
+            blurRadius: 10,
+            spreadRadius: 2,
+            offset: const Offset(0, 5),
+          )
+        ],
+      ),
+      child: Row(
+        children: List.generate(_titles.length, (index) => _buildNavItem(index)),
+      ),
+    );
+  }
 
   Widget _buildNavItem(int index) {
     bool isSelected = index == _selectedIndex;
@@ -107,15 +197,13 @@ class _ProviderHomeState extends State<ProviderHome> {
           decoration: BoxDecoration(
             color: isSelected ? Colors.blue.shade100 : Colors.transparent,
             borderRadius: BorderRadius.circular(16),
-            boxShadow: isSelected
-                ? [
+            boxShadow: isSelected ? [
               BoxShadow(
                 color: Colors.blue.withValues(alpha: 0.3),
                 blurRadius: 8,
                 offset: const Offset(0, 4),
               )
-            ]
-                : [],
+            ] : [],
           ),
           child: FittedBox(
             fit: BoxFit.scaleDown,
@@ -146,120 +234,4 @@ class _ProviderHomeState extends State<ProviderHome> {
     );
   }
 
-
-
-
-
-
-
-
-
-  Stream<QuerySnapshot>? requestStream;
-  String? providerId;
-  String? serviceId;
-  GeoPoint? providerLocation;
-
-  bool hasShownDialog = false;
-
-
-  Future<void> _initProviderData() async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    providerId = uid;
-
-    // Load provider info from Firestore
-    final doc = await FirebaseFirestore.instance
-        .collection('service_providers')
-        .doc(uid)
-        .get();
-
-    if (doc.exists) {
-      serviceId = doc['service_id'];
-      providerLocation = doc['location'];
-
-      // Listen for requests in this service category
-      setState(() {
-        requestStream = FirebaseFirestore.instance
-            .collection('service_request')
-            .snapshots();
-      });
-    }
-  }
-
-
-  bool _isNearby(GeoPoint a, GeoPoint b) {
-    const maxDistanceInMeters = 3000;
-    final distance = Geolocator.distanceBetween(
-      a.latitude, a.longitude,
-      b.latitude, b.longitude,
-    );
-    return distance <= maxDistanceInMeters;
-  }
-
-
-  void _showRequestPopup(Map<String, dynamic> requestData, String docId) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) {
-        return AlertDialog(
-          title: const Text("New Service Request"),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text("Service: ${requestData['service_name']}"),
-              const SizedBox(height: 10),
-              const Text("Do you want to accept this request?"),
-            ],
-          ),
-          actions: [
-            TextButton(
-              child: const Text("Reject"),
-              onPressed: () {
-                Navigator.of(ctx).pop();
-                // Optionally mark request as rejected
-              },
-            ),
-            ElevatedButton(
-              child: const Text("Accept"),
-              onPressed: () async {
-                final providerId = FirebaseAuth.instance.currentUser!.uid;
-
-                await FirebaseFirestore.instance
-                    .collection('service_confirmation')
-                    .add({
-                  'service_id': requestData['service_id'],
-                  'provider_id': providerId,
-                  'location': providerLocation,
-                  'timestamp': Timestamp.now(),
-                });
-
-                Navigator.of(ctx).pop();
-
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                  content: Text("Service Accepted. Contact shared."),
-                ));
-              },
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-
-  Future<void> goOnline() async {
-    final position = await getCurrentLocation();
-    final providerId = FirebaseAuth.instance.currentUser!.uid;
-    final serviceId = 'your_service_id'; // You should know this or let provider choose
-
-    await FirebaseFirestore.instance
-        .collection('service_provider')
-        .doc(serviceId)
-        .set({
-      'provider_id': providerId,
-      'service_id': serviceId,
-      'location': GeoPoint(position.latitude, position.longitude),
-      'timestamp': FieldValue.serverTimestamp(),
-    });
-  }
 }

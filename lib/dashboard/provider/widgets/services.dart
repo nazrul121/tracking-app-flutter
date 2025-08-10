@@ -1,7 +1,7 @@
 import 'dart:math';
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../utils/location_helper.dart';
 
@@ -44,6 +44,51 @@ class _ProviderServicePageState extends State<ProviderServicePage> {
     },
   ];
 
+  List<String> selectedServiceIds = [];
+  bool isAdding = true;
+  String searchQuery = '';
+  String userId = '';
+
+  @override
+  void initState() {
+    super.initState();
+    loadSelectedServices();
+  }
+
+  Future<void> loadSelectedServices() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      selectedServiceIds = prefs.getStringList('service_ids') ?? [];
+      userId = prefs.getString('user_id') ?? '';
+    });
+  }
+
+  Future<void> saveSelectedServices() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList('service_ids', selectedServiceIds);
+  }
+
+  void addService(String serviceId) {
+    if (!selectedServiceIds.contains(serviceId)) {
+      setState(() {
+        selectedServiceIds.add(serviceId);
+        saveSelectedServices();
+      });
+    }
+  }
+
+  List<Map<String, dynamic>> get filteredServices {
+    if (searchQuery.isEmpty) return [];
+    return services
+        .where((s) =>
+    s['title'].toLowerCase().contains(searchQuery.toLowerCase()) &&
+        !selectedServiceIds.contains(s['id']))
+        .toList();
+  }
+
+  List<Map<String, dynamic>> get selectedServiceDetails =>
+      services.where((s) => selectedServiceIds.contains(s['id'])).toList();
+
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
@@ -51,16 +96,59 @@ class _ProviderServicePageState extends State<ProviderServicePage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Row(
+            children: [
+              Text('Available Services $userId',
+                style: TextStyle(
+                  fontSize: 26, fontWeight: FontWeight.bold,color: Colors.black87,
+                ),
+              ),
+              const Spacer(),
+              IconButton(
+                onPressed: () {
+                  setState(() {
+                    isAdding = !isAdding;
+                  });
+                },
+                icon: const Icon(Icons.add_circle_outline, size: 28, color: Colors.blue),
+              ),
+            ],
+          ),
+          if (isAdding) ...[
+            TextField(
+              decoration: const InputDecoration(
+                hintText: 'Search for a service...',
+                prefixIcon: Icon(Icons.search),
+              ),
+              onChanged: (value) {
+                setState(() {
+                  searchQuery = value;
+                });
+              },
+            ),
+            const SizedBox(height: 8),
+            ...filteredServices.map((service) => ListTile(
+              leading: Icon(service['icon'], color: service['color']),
+              title: Text(service['title']),
+              trailing: ElevatedButton(
+                onPressed: () => addService(service['id']),
+                child: const Text('Add'),
+              ),
+            )),
+            const SizedBox(height: 16),
+          ],
           const Text(
-            'Available Services',
+            'Your Selected Services',
             style: TextStyle(
-              fontSize: 26,
-              fontWeight: FontWeight.bold,
+              fontSize: 20,
+              fontWeight: FontWeight.w600,
               color: Colors.black87,
             ),
           ),
-          const SizedBox(height: 12),
-          ...services.map((service) {
+          const SizedBox(height: 8),
+          if (selectedServiceDetails.isEmpty)
+            const Text('No services selected yet.'),
+          ...selectedServiceDetails.map((service) {
             return Card(
               elevation: 3,
               margin: const EdgeInsets.symmetric(vertical: 8),
@@ -84,104 +172,21 @@ class _ProviderServicePageState extends State<ProviderServicePage> {
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-                subtitle: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      service['description'],
-                      style: const TextStyle(fontSize: 14),
-                    ),
-                  ],
+                subtitle: Text(service['description']),
+                trailing: IconButton(
+                  icon: const Icon(Icons.remove_circle_outline, color: Colors.red),
+                  onPressed: () {
+                    setState(() {
+                      selectedServiceIds.remove(service['id']);
+                      saveSelectedServices();
+                    });
+                  },
                 ),
-                trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 16),
-                onTap: () {
-                  // Handle service tap if needed
-                },
               ),
             );
-          }).toList(),
+          }),
         ],
       ),
     );
   }
-
-  Future<void> handleServiceRequest({
-    required String customerId,
-    required String serviceId,
-    required String serviceName,
-  }) async {
-    GeoPoint location = await getCurrentLocation();
-
-    await FirebaseFirestore.instance
-        .collection('service_request')
-        .doc(customerId)
-        .set({
-      'service_id': serviceId,
-      'service_name': serviceName,
-      'timestamp': Timestamp.now(),
-      'location': location,
-    });
-
-    // Now search for nearby providers
-    searchNearbyProviders(
-      customerId: customerId,
-      serviceId: serviceId,
-      customerLocation: location,
-      serviceName: serviceName,
-    );
-  }
-
-  Future<void> searchNearbyProviders({
-    required String customerId,
-    required String serviceId,
-    required GeoPoint customerLocation,
-    required String serviceName,
-  }) async {
-    final snapshot = await FirebaseFirestore.instance
-        .collection('service_provider')
-        .doc(serviceId)
-        .collection('active')
-        .get();
-
-    for (var doc in snapshot.docs) {
-      GeoPoint providerLocation = doc['location'];
-
-      double distance = calculateDistance(
-          customerLocation.latitude,
-          customerLocation.longitude,
-          providerLocation.latitude,
-          providerLocation.longitude);
-
-      if (distance <= 5.0) {
-        // Send notification or create a Firestore trigger for popup
-        await FirebaseFirestore.instance
-            .collection('provider_notifications')
-            .doc(doc['provider_id'])
-            .set({
-          'customer_id': customerId,
-          'service_id': serviceId,
-          'service_name': serviceName,
-          'timestamp': Timestamp.now(),
-          'location': customerLocation,
-        });
-
-        break; // only notify one for now
-      }
-    }
-  }
-
-
-  double calculateDistance(
-      double lat1, double lon1, double lat2, double lon2) {
-    const p = 0.017453292519943295;
-    final a = 0.5 -
-        cos((lat2 - lat1) * p) / 2 +
-        cos(lat1 * p) *
-            cos(lat2 * p) *
-            (1 - cos((lon2 - lon1) * p)) /
-            2;
-    return 12742 * asin(sqrt(a)); // in km
-  }
-
-
 }
